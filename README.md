@@ -50,6 +50,23 @@ npm.cmd run build
 npm.cmd start
 ```
 
+## Deploy Server Terpisah
+
+Kalau mau host backend multiplayer di VPS sebagai project sendiri, pakai folder [`vps-server`](./vps-server).
+
+```powershell
+cd vps-server
+npm.cmd install
+npm.cmd start
+```
+
+Lalu build client dengan alamat WebSocket VPS, misalnya:
+
+```powershell
+$env:VITE_WS_URL='wss://game-domain-anda.com/ws'
+npm.cmd run build
+```
+
 Server produksi melayani folder `dist/` dan endpoint WebSocket `/ws` pada origin yang sama. Port default adalah `5173`; port dapat diubah di PowerShell:
 
 ```powershell

@@ -24,6 +24,7 @@ import { SoundEngine } from './sound-engine.js';
 import { ThreeAtmosphere } from './three-atmosphere.js';
 
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const COARSE_POINTER_QUERY = window.matchMedia('(any-pointer: coarse)');
 const MAX_RENDER_EXTRAPOLATION_MS = 120;
 const PLAYER_SCALE = 0.68;
 
@@ -42,6 +43,7 @@ const ui = {
   nextAmmo: document.getElementById('next-ammo'),
   ammoPanel: document.querySelector('.ammo-panel'),
   swapBtn: document.getElementById('swap-btn'),
+  mobileFireBtn: document.getElementById('mobile-fire-btn'),
   soundBtn: document.getElementById('sound-btn'),
   pauseBtn: document.getElementById('pause-btn'),
   connectionChip: document.getElementById('connection-chip'),
@@ -101,6 +103,18 @@ function setOrb(element, colorIndex) {
 function setText(element, value) {
   const text = String(value);
   if (element.textContent !== text) element.textContent = text;
+}
+
+function isTouchLikePointer(pointer) {
+  const event = pointer?.event;
+  return event?.pointerType === 'touch' ||
+    pointer?.pointerType === 'touch' ||
+    event?.type?.startsWith('touch') ||
+    Boolean(event?.changedTouches?.length);
+}
+
+function pulseHaptics(duration = 10) {
+  if (COARSE_POINTER_QUERY.matches) navigator.vibrate?.(duration);
 }
 
 function getRosterKey(snapshot) {
@@ -178,6 +192,7 @@ function updateAmmoUI(snapshot = latestSnapshot) {
   setOrb(ui.currentAmmo, self?.currentColor ?? 0);
   setOrb(ui.nextAmmo, self?.nextColor ?? 1);
   ui.swapBtn.disabled = !enabled;
+  ui.mobileFireBtn.disabled = !enabled;
 }
 
 function updateSnapshotUI(snapshot) {
@@ -606,14 +621,18 @@ class MultiplayerZumaScene extends Phaser.Scene {
   }
 
   bindInput() {
-    this.onPointerMove = (pointer) => this.updateLocalAim(pointer.worldX, pointer.worldY);
+    this.onPointerMove = (pointer) => {
+      if (!isTouchLikePointer(pointer) || pointer.isDown) {
+        this.updateLocalAim(pointer.worldX, pointer.worldY);
+      }
+    };
     this.onPointerDown = (pointer) => {
       if (pointer.rightButtonDown() || pointer.event?.button === 2) {
         this.swapAmmo();
         return;
       }
       this.updateLocalAim(pointer.worldX, pointer.worldY);
-      this.fireProjectile();
+      if (!isTouchLikePointer(pointer)) this.fireProjectile();
     };
     this.input.on('pointermove', this.onPointerMove);
     this.input.on('pointerdown', this.onPointerDown);
@@ -626,12 +645,17 @@ class MultiplayerZumaScene extends Phaser.Scene {
     this.keys.pause.on('down', () => this.requestPause());
     this.keys.escape.on('down', () => this.requestPause());
     this.preventContextMenu = (event) => event.preventDefault();
+    this.preventCanvasTouch = (event) => event.preventDefault();
     this.game.canvas.addEventListener('contextmenu', this.preventContextMenu);
+    this.game.canvas.addEventListener('touchstart', this.preventCanvasTouch, { passive: false });
+    this.game.canvas.addEventListener('touchmove', this.preventCanvasTouch, { passive: false });
   }
 
   cleanup() {
     if (activeScene === this) activeScene = null;
     this.game?.canvas?.removeEventListener('contextmenu', this.preventContextMenu);
+    this.game?.canvas?.removeEventListener('touchstart', this.preventCanvasTouch);
+    this.game?.canvas?.removeEventListener('touchmove', this.preventCanvasTouch);
   }
 
   applySnapshot(snapshot) {
@@ -824,6 +848,7 @@ class MultiplayerZumaScene extends Phaser.Scene {
     this.shooterActors.get(self.id)?.mouthBall.setTexture(`ball-${BALL_TYPES[self.currentColor].key}`);
     updateAmmoUI(this.snapshot);
     this.nextLocalShotAt = now + SHOT_COOLDOWN_MS;
+    pulseHaptics(9);
     sound.unlock();
     sound.shoot();
   }
@@ -839,6 +864,7 @@ class MultiplayerZumaScene extends Phaser.Scene {
     this.nextLocalSwapAt = now + SWAP_COOLDOWN_MS;
     ui.ammoPanel.classList.add('is-swapping');
     window.setTimeout(() => ui.ammoPanel.classList.remove('is-swapping'), 170);
+    pulseHaptics(7);
     sound.swap();
   }
 
@@ -1024,7 +1050,23 @@ ui.stateActionBtn.addEventListener('click', () => {
 ui.stateSecondaryBtn.addEventListener('click', () => {
   if (ui.stateSecondaryBtn.dataset.action) network.action(ui.stateSecondaryBtn.dataset.action);
 });
-ui.swapBtn.addEventListener('click', () => activeScene?.swapAmmo());
+
+function bindQuickPress(element, handler) {
+  element.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    handler();
+  });
+  element.addEventListener('click', (event) => {
+    if (event.detail === 0) handler();
+    else event.preventDefault();
+  });
+}
+
+bindQuickPress(ui.swapBtn, () => activeScene?.swapAmmo());
+bindQuickPress(ui.mobileFireBtn, () => {
+  sound.unlock();
+  activeScene?.fireProjectile();
+});
 ui.pauseBtn.addEventListener('click', () => activeScene?.requestPause());
 ui.soundBtn.addEventListener('click', () => {
   sound.setEnabled(!sound.enabled);

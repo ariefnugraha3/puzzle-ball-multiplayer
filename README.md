@@ -19,7 +19,7 @@ Server akan menampilkan dua jenis alamat:
 - `Local`, misalnya `http://localhost:5173`, untuk perangkat yang menjalankan server.
 - `Network`, misalnya `http://192.168.1.10:5173`, untuk perangkat lain pada jaringan Wi-Fi/LAN yang sama.
 
-Jika Windows Firewall bertanya, izinkan akses pada jaringan privat. Semua pemain harus membuka alamat server yang sama.
+Client saat ini terhubung ke server authoritative publik `ws://103.93.135.174/ws`, sebagaimana diatur dalam `.env`. Karena room berada di server publik, pemain boleh membuka frontend dari jaringan yang berbeda; mereka hanya perlu memakai kode room yang sama. Jika Windows Firewall bertanya saat frontend dibuka melalui LAN, izinkan akses pada jaringan privat.
 
 Game multiplayer **harus dijalankan melalui server**. Membuka `index.html` langsung lewat `file://` tidak dapat menjalankan modul, room, atau koneksi WebSocket dengan benar.
 
@@ -66,6 +66,14 @@ Lalu build client dengan alamat WebSocket VPS, misalnya:
 $env:VITE_WS_URL='wss://game-domain-anda.com/ws'
 npm.cmd run build
 ```
+
+Konfigurasi aktif repo ini berada di `.env`:
+
+```dotenv
+VITE_WS_URL=ws://103.93.135.174/ws
+```
+
+Alamat `ws://` hanya dapat dipakai dari halaman HTTP. Jika frontend nantinya dipasang pada HTTPS, backend juga harus menyediakan `wss://` dan nilai tersebut harus diganti agar browser tidak memblokir mixed content.
 
 Server produksi melayani folder `dist/` dan endpoint WebSocket `/ws` pada origin yang sama. Port default adalah `5173`; port dapat diubah di PowerShell:
 

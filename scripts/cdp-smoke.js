@@ -5,10 +5,12 @@ const port = Number(process.argv.find((value) => value.startsWith('--port='))?.s
 const output = process.argv.find((value) => value.startsWith('--output='))?.slice(9) ?? 'cdp-smoke.png';
 const waitMs = Number(process.argv.find((value) => value.startsWith('--wait='))?.slice(7) ?? 2500);
 const navigate = process.argv.find((value) => value.startsWith('--navigate='))?.slice(11) ?? '';
+const configuredWebSocketUrl = process.argv.find((value) => value.startsWith('--ws-url='))?.slice(9) ?? '';
 const scenario = process.argv.find((value) => value.startsWith('--scenario='))?.slice(11) ?? '';
 const viewportWidth = Number(process.argv.find((value) => value.startsWith('--width='))?.slice(8) ?? 0);
 const viewportHeight = Number(process.argv.find((value) => value.startsWith('--height='))?.slice(9) ?? 0);
 const clearStorage = process.argv.includes('--clear-storage');
+const emulateTouch = process.argv.includes('--touch');
 
 const sleep = (duration) => new Promise((resolve) => setTimeout(resolve, duration));
 
@@ -162,7 +164,13 @@ try {
       width: viewportWidth,
       height: viewportHeight,
       deviceScaleFactor: 1,
-      mobile: viewportWidth <= 760
+      mobile: emulateTouch || viewportWidth <= 760
+    });
+  }
+  if (emulateTouch) {
+    await command('Emulation.setTouchEmulationEnabled', {
+      enabled: true,
+      maxTouchPoints: 5
     });
   }
   if ((scenario === 'host' || clearStorage) && navigate) {
@@ -191,11 +199,13 @@ try {
     );
 
     const roomCode = await evaluate(`document.getElementById('room-code-display').textContent.trim()`);
-    const gameUrl = new URL(navigate);
-    gameUrl.protocol = gameUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    gameUrl.pathname = '/ws';
-    gameUrl.search = '';
-    gameUrl.hash = '';
+    const gameUrl = new URL(configuredWebSocketUrl || navigate);
+    if (!configuredWebSocketUrl) {
+      gameUrl.protocol = gameUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      gameUrl.pathname = '/ws';
+      gameUrl.search = '';
+      gameUrl.hash = '';
+    }
     bots.push(...await Promise.all([1, 2, 3].map((index) => connectBot(gameUrl.href, roomCode, index))));
 
     await waitFor(
@@ -214,9 +224,35 @@ try {
     })()`);
     const x = canvas.left + canvas.width * (720 / 1280);
     const y = canvas.top + canvas.height * (100 / 720);
-    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none' });
-    await command('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
-    await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 });
+    if (emulateTouch) {
+      await command('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x, y, radiusX: 4, radiusY: 4, force: 1, id: 1 }]
+      });
+      await command('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x, y, radiusX: 4, radiusY: 4, force: 1, id: 1 }]
+      });
+      await command('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+      const fireButton = await evaluate(`(() => {
+        const element = document.getElementById('mobile-fire-btn');
+        const rect = element?.getBoundingClientRect();
+        return rect && rect.width > 0 && rect.height > 0
+          ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+          : null;
+      })()`);
+      if (!fireButton) throw new Error('The mobile fire button is not visible.');
+      await command('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ ...fireButton, radiusX: 8, radiusY: 8, force: 1, id: 2 }]
+      });
+      await command('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none' });
+      await command('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
+      await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 });
+    }
 
     await waitFor(
       `document.getElementById('balls-left')?.textContent !== '--'`,
@@ -237,6 +273,22 @@ try {
     ballCount: document.getElementById('balls-left')?.textContent,
     level: document.getElementById('level')?.textContent,
     canvases: document.querySelectorAll('canvas').length,
+    coarsePointer: matchMedia('(any-pointer: coarse)').matches,
+    mobileFireVisible: getComputedStyle(document.getElementById('mobile-controls')).display !== 'none',
+    viewport: {
+      width: innerWidth,
+      height: innerHeight,
+      scrollX,
+      scrollY,
+      visualWidth: visualViewport?.width,
+      visualHeight: visualViewport?.height,
+      visualOffsetLeft: visualViewport?.offsetLeft,
+      visualOffsetTop: visualViewport?.offsetTop
+    },
+    controlRects: Object.fromEntries(['#player-roster', '.ammo-panel', '#mobile-controls'].map((selector) => {
+      const rect = document.querySelector(selector)?.getBoundingClientRect();
+      return [selector, rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null];
+    })),
     lobbyError: document.getElementById('lobby-error')?.textContent
   })`));
   let screenshotError = null;
@@ -261,6 +313,7 @@ try {
     if (!diagnostics.overlayHidden) failures.push('match overlay is still visible');
     if (diagnostics.roster.length !== 4) failures.push('four-player roster was not rendered');
     if (diagnostics.canvases < 2) failures.push('Phaser or Three.js canvas is missing');
+    if (emulateTouch && !diagnostics.mobileFireVisible) failures.push('mobile fire control is hidden');
     if ((webSocketSummary.sentTypes.fire ?? 0) < 1) failures.push('browser fire input was not sent');
     if ((webSocketSummary.receivedTypes.projectileSpawn ?? 0) < 1) failures.push('authoritative projectile was not received');
     if (runtimeErrors.length) failures.push('browser runtime errors were reported');

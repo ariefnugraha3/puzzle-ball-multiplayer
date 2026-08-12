@@ -24,6 +24,15 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+@supports (height: 100dvh) {
+  html,
+  body,
+  #app {
+    height: 100dvh;
+  }
 }
 
 body {
@@ -36,6 +45,7 @@ body {
 
 button {
   font: inherit;
+  touch-action: manipulation;
 }
 
 #app {
@@ -68,12 +78,14 @@ button {
 
 #game-layer {
   z-index: 1;
+  touch-action: none;
 }
 
 #game-layer canvas {
   display: block;
   cursor: crosshair;
   filter: saturate(1.04) contrast(1.02);
+  touch-action: none;
 }
 
 .screen-vignette {
@@ -523,6 +535,73 @@ button {
   letter-spacing: 0.16em;
 }
 
+.mobile-controls {
+  position: absolute;
+  z-index: 6;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  display: none;
+  pointer-events: auto;
+  animation: hud-rise 0.7s 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.mobile-fire-btn {
+  position: relative;
+  width: 88px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 227, 147, 0.9);
+  border-radius: 50%;
+  color: #162318;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.92), rgba(255, 227, 147, 0.62) 16%, transparent 17%),
+    radial-gradient(circle, #ffe393 0 35%, #e8a33c 58%, #8b5018 100%);
+  box-shadow:
+    0 10px 0 #643a12,
+    0 20px 36px rgba(0, 0, 0, 0.42),
+    inset 0 2px rgba(255, 255, 255, 0.72),
+    inset -12px -14px 24px rgba(95, 52, 13, 0.34);
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
+}
+
+.mobile-fire-btn::before {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  border: 2px solid rgba(22, 35, 24, 0.34);
+  border-radius: inherit;
+}
+
+.mobile-fire-btn span {
+  width: 34px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, white 0 9%, #a6f2ff 12%, transparent 28%),
+    radial-gradient(circle, #35d8ff, #08789f 72%);
+  box-shadow:
+    inset -6px -7px 10px rgba(0, 0, 0, 0.28),
+    0 0 18px rgba(53, 216, 255, 0.6);
+}
+
+.mobile-fire-btn:active:not(:disabled) {
+  transform: translateY(7px) scale(0.97);
+  filter: brightness(1.08);
+  box-shadow:
+    0 4px 0 #643a12,
+    0 12px 24px rgba(0, 0, 0, 0.38),
+    inset 0 2px rgba(255, 255, 255, 0.72),
+    inset -12px -14px 24px rgba(95, 52, 13, 0.34);
+}
+
+.mobile-fire-btn:disabled {
+  opacity: 0.38;
+  filter: grayscale(0.45);
+  cursor: default;
+}
+
 .ammo-current-wrap,
 .ammo-next-wrap {
   display: flex;
@@ -642,6 +721,8 @@ button {
     rgba(1, 10, 9, 0.64);
   backdrop-filter: blur(8px);
   animation: overlay-in 0.32s ease-out both;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .overlay-card {
@@ -776,6 +857,7 @@ button {
   font-size: 15px;
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
   user-select: text;
+  touch-action: manipulation;
 }
 
 .text-input:focus {
@@ -1114,6 +1196,21 @@ noscript {
   .roster-player { min-width: 0; padding: 5px; grid-template-columns: auto minmax(0, 1fr); }
   .roster-tag { display: none; }
   .room-badge { display: none; }
+  .text-input { font-size: 16px; }
+}
+
+@media (any-pointer: coarse), (max-width: 760px) {
+  #game-layer canvas {
+    cursor: default;
+  }
+
+  .mobile-controls {
+    display: grid;
+  }
+
+  .control-hint {
+    display: none;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1162,7 +1259,7 @@ noscript {
     position: absolute;
     z-index: 8;
     right: 10px;
-    bottom: 10px;
+    bottom: max(116px, calc(env(safe-area-inset-bottom) + 116px));
     width: 178px;
     padding: 10px 12px;
     display: grid;
@@ -1194,6 +1291,57 @@ noscript {
   .overlay-card { padding-top: 46px; padding-bottom: 22px; }
   .overlay-guide { margin-top: 13px; padding-block: 10px; }
   .overlay-footnote { display: none; }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  #hud {
+    min-height: 50px;
+    padding: max(6px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 6px max(10px, env(safe-area-inset-left));
+    grid-template-columns: 1fr auto;
+  }
+
+  .brand-lockup {
+    display: none;
+  }
+
+  .stats-panel {
+    justify-self: start;
+    min-height: 40px;
+  }
+
+  .stat {
+    min-width: 62px;
+    padding: 4px 9px;
+  }
+
+  .stat strong {
+    font-size: 15px;
+  }
+
+  .danger-panel {
+    top: 53px;
+    width: min(340px, calc(100vw - 190px));
+  }
+
+  .player-roster {
+    top: 58px;
+    width: 138px;
+    grid-template-columns: 1fr;
+  }
+
+  .roster-player {
+    min-height: 27px;
+    padding: 4px 6px;
+    font-size: 8px;
+  }
+
+  .ammo-panel {
+    height: 52px;
+  }
+
+  .mobile-fire-btn {
+    width: 76px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

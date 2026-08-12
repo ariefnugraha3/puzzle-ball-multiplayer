@@ -10,6 +10,13 @@ function safeStorage(storage, operation, fallback = null) {
   }
 }
 
+function resolveWebSocketUrl() {
+  const configuredUrl = import.meta.env.VITE_WS_URL?.trim();
+  if (configuredUrl) return configuredUrl;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
+}
+
 function createSessionId() {
   const existing = safeStorage(sessionStorage, (storage) => storage.getItem(SESSION_KEY));
   if (existing) return existing;
@@ -59,8 +66,7 @@ export class NetworkClient {
     if (this.socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(this.socket.readyState)) return;
     this.intentionalClose = false;
     this.setStatus(this.reconnectAttempt ? 'reconnecting' : 'connecting');
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.socket = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    this.socket = new WebSocket(resolveWebSocketUrl());
     this.socket.addEventListener('open', () => this.handleOpen());
     this.socket.addEventListener('message', (event) => this.handleMessage(event));
     this.socket.addEventListener('close', (event) => this.handleClose(event));

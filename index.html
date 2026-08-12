@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#071715" />
+    <meta
+      name="description"
+      content="Zuma Rift, game marble shooter multiplayer kooperatif untuk 1-4 pemain."
+    />
+    <title>Zuma Rift Multiplayer</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='29' fill='%23071917' stroke='%23f6c85f' stroke-width='4'/%3E%3Ccircle cx='24' cy='27' r='5' fill='%2377e0a2'/%3E%3Ccircle cx='40' cy='27' r='5' fill='%2377e0a2'/%3E%3Cpath d='M19 41q13 9 26 0' fill='none' stroke='%23f6c85f' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <main id="app">
+      <div id="three-layer" aria-hidden="true"></div>
+      <div id="game-layer" aria-label="Area permainan Zuma Rift multiplayer"></div>
+      <div class="screen-vignette" aria-hidden="true"></div>
+
+      <header id="hud" aria-label="Status permainan">
+        <div class="brand-lockup">
+          <div class="brand-seal" aria-hidden="true"><span></span></div>
+          <div>
+            <p class="eyebrow">Co-op temple defense</p>
+            <h1>Zuma Rift</h1>
+          </div>
+        </div>
+
+        <div class="stats-panel">
+          <div class="stat">
+            <span class="stat-label">Skor Tim</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Level</span>
+            <strong><span id="level">1</span><small>/3</small></strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Rantai</span>
+            <strong id="balls-left">0</strong>
+          </div>
+          <div class="stat combo-stat">
+            <span class="stat-label">Combo</span>
+            <strong id="combo">x1</strong>
+          </div>
+        </div>
+
+        <div class="network-tools">
+          <div id="connection-chip" class="connection-chip is-connecting" title="Status server">
+            <span class="connection-dot"></span>
+            <span id="connection-text">Menghubungkan</span>
+            <b id="ping-value">-- ms</b>
+          </div>
+          <div class="hud-actions">
+            <button id="sound-btn" class="icon-btn" type="button" aria-label="Matikan suara" title="Suara: aktif">
+              <span aria-hidden="true">VOL</span>
+            </button>
+            <button id="pause-btn" class="icon-btn" type="button" aria-label="Jeda permainan" title="Jeda untuk semua pemain">
+              <span aria-hidden="true">II</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section class="danger-panel" aria-label="Jarak rantai ke gerbang akhir">
+        <div class="danger-copy">
+          <span id="level-name">Gerbang Giok</span>
+          <span id="danger-label">Kuil aman</span>
+        </div>
+        <div class="danger-track">
+          <div id="danger-fill" class="danger-fill"></div>
+          <span class="danger-gate" aria-hidden="true"></span>
+        </div>
+      </section>
+
+      <aside id="player-roster" class="player-roster" aria-label="Pemain dalam room"></aside>
+
+      <aside class="ammo-panel" aria-label="Amunisi pemain lokal">
+        <div class="ammo-current-wrap">
+          <span class="ammo-label">Bola kamu</span>
+          <span id="current-ammo" class="ammo-orb" aria-hidden="true"></span>
+        </div>
+        <button id="swap-btn" class="swap-btn" type="button" aria-label="Tukar bola aktif" title="Tukar bola (Spasi)">
+          <span aria-hidden="true">SWAP</span>
+        </button>
+        <div class="ammo-next-wrap">
+          <span id="next-ammo" class="ammo-orb next" aria-hidden="true"></span>
+          <span class="ammo-label">Berikutnya</span>
+        </div>
+      </aside>
+
+      <div class="room-badge hidden" id="room-badge" aria-label="Kode room">
+        <span>Room</span><strong id="room-badge-code">-----</strong>
+      </div>
+
+      <div class="control-hint" aria-hidden="true">
+        <span>Bidik</span><b>Mouse / Sentuh</b>
+        <i></i>
+        <span>Tembak</span><b>Klik</b>
+        <i></i>
+        <span>Tukar</span><b>Spasi / Klik kanan</b>
+      </div>
+
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+      <section id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+        <div class="overlay-card multiplayer-card">
+          <div class="overlay-rune" aria-hidden="true"><span></span></div>
+
+          <div id="lobby-view" class="overlay-view">
+            <p class="overlay-kicker">Multiplayer kooperatif 1-4 pemain</p>
+            <h2 id="overlay-title">Masuk ke Rift</h2>
+            <p class="overlay-copy">
+              Buat room untuk bermain sendiri atau bagikan kode agar sampai tiga penjaga lain dapat bergabung.
+            </p>
+
+            <label class="field-label" for="player-name">Nama penjaga</label>
+            <input id="player-name" class="text-input" maxlength="18" autocomplete="nickname" placeholder="Nama kamu" />
+
+            <div class="lobby-actions">
+              <button id="create-room-btn" class="primary-btn" type="button">Buat Room</button>
+              <div class="join-divider"><span>atau gabung</span></div>
+              <form id="join-form" class="join-form">
+                <input
+                  id="room-code-input"
+                  class="text-input room-code-input"
+                  maxlength="5"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-label="Kode room"
+                  placeholder="KODE"
+                />
+                <button id="join-room-btn" class="secondary-btn" type="submit">Gabung</button>
+              </form>
+            </div>
+            <p id="lobby-error" class="form-message" aria-live="polite">Menghubungkan ke server...</p>
+          </div>
+
+          <div id="room-view" class="overlay-view hidden">
+            <p class="overlay-kicker">Lobby penjaga</p>
+            <h2>Room Siap</h2>
+            <p class="overlay-copy">Bagikan kode ini. Host dapat memulai dengan jumlah pemain berapa pun.</p>
+            <button id="copy-room-btn" class="room-code-display" type="button" title="Salin kode room">
+              <span>Kode Room</span>
+              <strong id="room-code-display">-----</strong>
+              <small>Klik untuk menyalin</small>
+            </button>
+            <div id="lobby-player-list" class="lobby-player-list"></div>
+            <p id="host-message" class="host-message">Menunggu host memulai...</p>
+            <div class="overlay-actions">
+              <button id="start-room-btn" class="primary-btn" type="button">Mulai Game</button>
+              <button id="leave-room-btn" class="secondary-btn" type="button">Keluar Room</button>
+            </div>
+          </div>
+
+          <div id="state-view" class="overlay-view hidden">
+            <p id="state-kicker" class="overlay-kicker">Status permainan</p>
+            <h2 id="state-title">Permainan Dijeda</h2>
+            <p id="state-text" class="overlay-copy"></p>
+            <div id="state-player-list" class="lobby-player-list compact"></div>
+            <p id="state-host-message" class="host-message"></p>
+            <div class="overlay-actions">
+              <button id="state-action-btn" class="primary-btn" type="button">Lanjutkan</button>
+              <button id="state-secondary-btn" class="secondary-btn hidden" type="button">Mulai Ulang</button>
+              <button id="state-leave-btn" class="text-btn" type="button">Keluar Room</button>
+            </div>
+          </div>
+
+          <p class="overlay-footnote">Server authoritative, sinkronisasi 30 Hz, simulasi 60 Hz</p>
+        </div>
+      </section>
+
+      <div id="orientation-notice" aria-hidden="true">
+        <div class="phone-icon"></div>
+        <strong>Putar perangkat</strong>
+        <span>Mode lanskap memberi area bidik terbaik.</span>
+      </div>
+
+      <noscript>Game ini membutuhkan JavaScript untuk berjalan.</noscript>
+    </main>
+  </body>
+</html>

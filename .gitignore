@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+smoke-*.png
+.chrome-smoke-profile*/
+.chrome-mp-*/
+.smoke-room-code*
+multiplayer-*.png

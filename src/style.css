@@ -308,6 +308,11 @@ button {
   box-shadow: 0 0 9px rgba(255, 102, 95, 0.7);
 }
 
+.connection-chip.is-local .connection-dot {
+  background: var(--gold);
+  box-shadow: 0 0 9px rgba(246, 200, 95, 0.75);
+}
+
 .icon-btn,
 .swap-btn {
   border: 1px solid var(--line);
@@ -874,6 +879,12 @@ button {
 
 .lobby-actions .primary-btn {
   width: 100%;
+}
+
+.lobby-actions .offline-btn {
+  width: 100%;
+  color: #ffe7a6;
+  border-color: rgba(246, 200, 95, 0.34);
 }
 
 .join-divider {

@@ -13,7 +13,7 @@ import {
   getBoundaryMatchIndex,
   getMatchRange,
   segmentCircleHit
-} from '../src/game-logic.js';
+} from './game-logic.js';
 import {
   MAX_PLAYERS,
   PLAYER_SLOTS,
@@ -25,7 +25,7 @@ import {
   SWAP_COOLDOWN_MS,
   getLevelSettings,
   normalizeAngle
-} from '../src/multiplayer-config.js';
+} from './multiplayer-config.js';
 
 const MAX_FRAME_MS = 50;
 const PROJECTILE_LIFETIME_MS = 2300;
@@ -49,7 +49,7 @@ function hashCode(value) {
 
 export class GameRoom {
   constructor({ code, now = 0, onEvent = () => {} } = {}) {
-    if (!code) throw new Error('Room membutuhkan kode.');
+    if (!code) throw new Error('Room requires a code.');
     this.code = code;
     this.onEvent = onEvent;
     this.path = new SampledPath(TRACK_CONTROL_POINTS, 30);
@@ -85,10 +85,10 @@ export class GameRoom {
 
   addPlayer({ id, sessionId, name, now = 0 }) {
     if (this.state !== 'lobby') {
-      throw new RoomError('GAME_IN_PROGRESS', 'Game sudah dimulai. Tunggu room baru atau sambungkan ulang sesi lama.');
+      throw new RoomError('GAME_IN_PROGRESS', 'The game has already started. Wait for a new room or reconnect the previous session.');
     }
     if (this.players.size >= MAX_PLAYERS) {
-      throw new RoomError('ROOM_FULL', 'Room sudah penuh (maksimal 4 pemain).');
+      throw new RoomError('ROOM_FULL', 'The room is full (maximum 4 players).');
     }
 
     const usedSlots = new Set([...this.players.values()].map((player) => player.slot));
@@ -168,14 +168,14 @@ export class GameRoom {
 
   assertHost(playerId) {
     if (playerId !== this.hostId) {
-      throw new RoomError('HOST_ONLY', 'Hanya host yang dapat melakukan aksi ini.');
+      throw new RoomError('HOST_ONLY', 'Only the host can perform this action.');
     }
   }
 
   startCampaign(playerId, now = 0) {
     this.assertHost(playerId);
     if (this.state !== 'lobby' && this.state !== 'won') {
-      throw new RoomError('INVALID_STATE', 'Campaign tidak dapat dimulai dari state saat ini.');
+      throw new RoomError('INVALID_STATE', 'The campaign cannot start from the current state.');
     }
     this.score = 0;
     this.prepareLevel(0, now);
@@ -213,7 +213,7 @@ export class GameRoom {
   nextLevel(playerId, now = 0) {
     this.assertHost(playerId);
     if (this.state !== 'levelComplete') {
-      throw new RoomError('INVALID_STATE', 'Level berikutnya belum tersedia.');
+      throw new RoomError('INVALID_STATE', 'The next level is not available yet.');
     }
     this.score += 750 * (this.levelIndex + 1);
     this.prepareLevel(this.levelIndex + 1, now);
@@ -222,7 +222,7 @@ export class GameRoom {
   retryLevel(playerId, now = 0) {
     this.assertHost(playerId);
     if (this.state !== 'lost') {
-      throw new RoomError('INVALID_STATE', 'Level hanya dapat diulang setelah kalah.');
+      throw new RoomError('INVALID_STATE', 'The level can only be retried after losing.');
     }
     this.score = this.levelStartScore;
     this.prepareLevel(this.levelIndex, now);
@@ -231,7 +231,7 @@ export class GameRoom {
   restartCampaign(playerId, now = 0) {
     this.assertHost(playerId);
     if (!['lost', 'won', 'levelComplete'].includes(this.state)) {
-      throw new RoomError('INVALID_STATE', 'Campaign tidak dapat diulang dari state saat ini.');
+      throw new RoomError('INVALID_STATE', 'The campaign cannot restart from the current state.');
     }
     this.score = 0;
     this.prepareLevel(0, now);
@@ -241,7 +241,7 @@ export class GameRoom {
     this.assertHost(playerId);
     if (this.state === 'playing') this.state = 'paused';
     else if (this.state === 'paused') this.state = 'playing';
-    else throw new RoomError('INVALID_STATE', 'Game tidak dapat dijeda sekarang.');
+    else throw new RoomError('INVALID_STATE', 'The game cannot be paused right now.');
     this.lastUpdateAt = now;
     this.emit('stateChanged', { state: this.state, levelIndex: this.levelIndex }, now);
   }

@@ -36,7 +36,7 @@ export class ThreeAtmosphere {
       this.resize();
       this.start();
     } catch (error) {
-      console.warn('Three.js atmosphere dinonaktifkan:', error);
+      console.warn('Three.js atmosphere disabled:', error);
       this.dispose();
     }
   }

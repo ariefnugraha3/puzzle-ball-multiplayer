@@ -1,27 +1,238 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#071715" />
     <meta
       name="description"
-      content="Zuma Rift, game marble shooter multiplayer kooperatif untuk 1-4 pemain."
+      content="Zuma Rift, a cooperative multiplayer marble shooter for 1-4 players."
     />
     <title>Zuma Rift Multiplayer</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='29' fill='%23071917' stroke='%23f6c85f' stroke-width='4'/%3E%3Ccircle cx='24' cy='27' r='5' fill='%2377e0a2'/%3E%3Ccircle cx='40' cy='27' r='5' fill='%2377e0a2'/%3E%3Cpath d='M19 41q13 9 26 0' fill='none' stroke='%23f6c85f' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
     />
+    <style>
+      #startup-loader {
+        position: fixed;
+        z-index: 1000;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        color: #eaf8e7;
+        background:
+          radial-gradient(circle at 50% 44%, rgba(38, 112, 80, 0.28), transparent 34%),
+          linear-gradient(148deg, #071b17 0%, #03110f 52%, #061713 100%);
+        font-family: "Trebuchet MS", "Avenir Next", sans-serif;
+        opacity: 1;
+        transition: opacity 0.45s ease, visibility 0.45s ease;
+      }
+
+      #startup-loader::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, transparent 49.8%, rgba(246, 200, 95, 0.05) 50%, transparent 50.2%),
+          linear-gradient(transparent 49.8%, rgba(119, 224, 162, 0.04) 50%, transparent 50.2%);
+        background-size: 72px 72px;
+        mask-image: radial-gradient(circle at center, black, transparent 68%);
+      }
+
+      #startup-loader.is-leaving {
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .startup-content {
+        position: relative;
+        width: min(84vw, 360px);
+        display: grid;
+        justify-items: center;
+        text-align: center;
+      }
+
+      .startup-mark {
+        position: relative;
+        width: 104px;
+        height: 104px;
+        margin-bottom: 28px;
+        border: 1px solid rgba(246, 200, 95, 0.34);
+        border-radius: 50%;
+        box-shadow: inset 0 0 30px rgba(119, 224, 162, 0.08), 0 0 50px rgba(119, 224, 162, 0.1);
+      }
+
+      .startup-mark::before,
+      .startup-mark::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+      }
+
+      .startup-mark::before {
+        inset: 13px;
+        border: 2px solid rgba(119, 224, 162, 0.2);
+        border-top-color: #77e0a2;
+        border-bottom-color: #f6c85f;
+        animation: startup-spin 1.5s linear infinite;
+      }
+
+      .startup-mark::after {
+        inset: 35px;
+        background: radial-gradient(circle at 35% 28%, #fff4c4 0 7%, #77e0a2 11%, #176c58 70%);
+        box-shadow: 0 0 24px rgba(119, 224, 162, 0.45);
+        animation: startup-pulse 1.25s ease-in-out infinite;
+      }
+
+      .startup-orbit {
+        position: absolute;
+        inset: -1px;
+        border-radius: 50%;
+        animation: startup-spin 2.4s linear infinite reverse;
+      }
+
+      .startup-orbit::before,
+      .startup-orbit::after {
+        content: "";
+        position: absolute;
+        top: 8px;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+      }
+
+      .startup-orbit::before {
+        left: 17px;
+        background: #f6c85f;
+        box-shadow: 0 0 13px rgba(246, 200, 95, 0.7);
+      }
+
+      .startup-orbit::after {
+        right: 17px;
+        background: #e05262;
+        box-shadow: 0 0 13px rgba(224, 82, 98, 0.65);
+      }
+
+      .startup-kicker {
+        margin: 0 0 8px;
+        color: #77e0a2;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      .startup-title {
+        margin: 0;
+        color: #fff4c4;
+        font-family: Georgia, "Palatino Linotype", serif;
+        font-size: clamp(34px, 10vw, 54px);
+        line-height: 0.95;
+        letter-spacing: 0.075em;
+        text-shadow: 0 3px 0 #683b15, 0 12px 30px rgba(0, 0, 0, 0.5);
+        text-transform: uppercase;
+      }
+
+      .startup-status {
+        min-height: 17px;
+        margin: 20px 0 13px;
+        color: #a9c8b5;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+      }
+
+      .startup-progress {
+        width: min(70vw, 260px);
+        height: 3px;
+        overflow: hidden;
+        background: rgba(209, 241, 201, 0.12);
+      }
+
+      .startup-progress span {
+        display: block;
+        width: 45%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, #77e0a2, #f6c85f, transparent);
+        animation: startup-progress 1.3s ease-in-out infinite;
+      }
+
+      .startup-retry {
+        margin-top: 22px;
+        min-width: 148px;
+        min-height: 42px;
+        padding: 10px 20px;
+        border: 1px solid #ffe393;
+        border-radius: 6px;
+        color: #162318;
+        background: linear-gradient(180deg, #ffe393, #e5a83c);
+        box-shadow: 0 6px 0 #774814;
+        font: 900 11px/1 "Trebuchet MS", sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      #startup-loader.is-error .startup-mark,
+      #startup-loader.is-error .startup-progress {
+        opacity: 0.4;
+      }
+
+      @keyframes startup-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes startup-pulse {
+        50% { transform: scale(0.86); filter: brightness(1.25); }
+      }
+
+      @keyframes startup-progress {
+        from { transform: translateX(-110%); }
+        to { transform: translateX(235%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .startup-mark::before,
+        .startup-mark::after,
+        .startup-orbit,
+        .startup-progress span {
+          animation-duration: 3s;
+        }
+      }
+    </style>
     <script type="module" src="/src/main.js"></script>
   </head>
   <body>
+    <div id="startup-loader" role="status" aria-live="polite" aria-label="Loading Zuma Rift">
+      <div class="startup-content">
+        <div class="startup-mark" aria-hidden="true"><span class="startup-orbit"></span></div>
+        <p class="startup-kicker">Temple defense protocol</p>
+        <h1 class="startup-title">Zuma Rift</h1>
+        <p id="startup-status" class="startup-status">Awakening the temple...</p>
+        <div class="startup-progress" aria-hidden="true"><span></span></div>
+        <button id="startup-retry" class="startup-retry" type="button" hidden onclick="window.location.reload()">Reload Game</button>
+      </div>
+    </div>
+    <script>
+      window.__zumaStartupStartedAt = performance.now();
+      window.__zumaStartupTimer = window.setTimeout(() => {
+        const loader = document.getElementById('startup-loader');
+        const status = document.getElementById('startup-status');
+        const retry = document.getElementById('startup-retry');
+        if (!loader || loader.classList.contains('is-leaving')) return;
+        loader.classList.add('is-error');
+        status.textContent = 'The game is taking too long to start.';
+        retry.hidden = false;
+      }, 20000);
+    </script>
     <main id="app">
       <div id="three-layer" aria-hidden="true"></div>
-      <div id="game-layer" aria-label="Area permainan Zuma Rift multiplayer"></div>
+      <div id="game-layer" aria-label="Zuma Rift multiplayer game area"></div>
       <div class="screen-vignette" aria-hidden="true"></div>
 
-      <header id="hud" aria-label="Status permainan">
+      <header id="hud" aria-label="Game status">
         <div class="brand-lockup">
           <div class="brand-seal" aria-hidden="true"><span></span></div>
           <div>
@@ -32,7 +243,7 @@
 
         <div class="stats-panel">
           <div class="stat">
-            <span class="stat-label">Skor Tim</span>
+            <span class="stat-label">Team Score</span>
             <strong id="score">0</strong>
           </div>
           <div class="stat">
@@ -40,7 +251,7 @@
             <strong><span id="level">1</span><small>/3</small></strong>
           </div>
           <div class="stat">
-            <span class="stat-label">Rantai</span>
+            <span class="stat-label">Chain</span>
             <strong id="balls-left">0</strong>
           </div>
           <div class="stat combo-stat">
@@ -50,26 +261,26 @@
         </div>
 
         <div class="network-tools">
-          <div id="connection-chip" class="connection-chip is-connecting" title="Status server">
+          <div id="connection-chip" class="connection-chip is-connecting" title="Server status">
             <span class="connection-dot"></span>
-            <span id="connection-text">Menghubungkan</span>
+            <span id="connection-text">Connecting</span>
             <b id="ping-value">-- ms</b>
           </div>
           <div class="hud-actions">
-            <button id="sound-btn" class="icon-btn" type="button" aria-label="Matikan suara" title="Suara: aktif">
+            <button id="sound-btn" class="icon-btn" type="button" aria-label="Mute sound" title="Sound: on">
               <span aria-hidden="true">VOL</span>
             </button>
-            <button id="pause-btn" class="icon-btn" type="button" aria-label="Jeda permainan" title="Jeda untuk semua pemain">
+            <button id="pause-btn" class="icon-btn" type="button" aria-label="Pause game" title="Pause for all players">
               <span aria-hidden="true">II</span>
             </button>
           </div>
         </div>
       </header>
 
-      <section class="danger-panel" aria-label="Jarak rantai ke gerbang akhir">
+      <section class="danger-panel" aria-label="Chain distance to the final gate">
         <div class="danger-copy">
-          <span id="level-name">Gerbang Giok</span>
-          <span id="danger-label">Kuil aman</span>
+          <span id="level-name">Jade Gate</span>
+          <span id="danger-label">Temple secure</span>
         </div>
         <div class="danger-track">
           <div id="danger-fill" class="danger-fill"></div>
@@ -77,38 +288,38 @@
         </div>
       </section>
 
-      <aside id="player-roster" class="player-roster" aria-label="Pemain dalam room"></aside>
+      <aside id="player-roster" class="player-roster" aria-label="Players in room"></aside>
 
-      <aside class="ammo-panel" aria-label="Amunisi pemain lokal">
+      <aside class="ammo-panel" aria-label="Local player ammo">
         <div class="ammo-current-wrap">
-          <span class="ammo-label">Bola kamu</span>
+          <span class="ammo-label">Your ball</span>
           <span id="current-ammo" class="ammo-orb" aria-hidden="true"></span>
         </div>
-        <button id="swap-btn" class="swap-btn" type="button" aria-label="Tukar bola aktif" title="Tukar bola (Spasi)">
+        <button id="swap-btn" class="swap-btn" type="button" aria-label="Swap active ball" title="Swap ball (Space)">
           <span aria-hidden="true">SWAP</span>
         </button>
         <div class="ammo-next-wrap">
           <span id="next-ammo" class="ammo-orb next" aria-hidden="true"></span>
-          <span class="ammo-label">Berikutnya</span>
+          <span class="ammo-label">Next</span>
         </div>
       </aside>
 
-      <section id="mobile-controls" class="mobile-controls" aria-label="Kontrol sentuh">
-        <button id="mobile-fire-btn" class="mobile-fire-btn" type="button" aria-label="Tembak" disabled>
+      <section id="mobile-controls" class="mobile-controls" aria-label="Touch controls">
+        <button id="mobile-fire-btn" class="mobile-fire-btn" type="button" aria-label="Fire" disabled>
           <span aria-hidden="true"></span>
         </button>
       </section>
 
-      <div class="room-badge hidden" id="room-badge" aria-label="Kode room">
+      <div class="room-badge hidden" id="room-badge" aria-label="Room code">
         <span>Room</span><strong id="room-badge-code">-----</strong>
       </div>
 
       <div class="control-hint" aria-hidden="true">
-        <span>Bidik</span><b>Mouse / Sentuh</b>
+        <span>Aim</span><b>Mouse / Touch</b>
         <i></i>
-        <span>Tembak</span><b>Klik</b>
+        <span>Fire</span><b>Click</b>
         <i></i>
-        <span>Tukar</span><b>Spasi / Klik kanan</b>
+        <span>Swap</span><b>Space / Right click</b>
       </div>
 
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
@@ -118,18 +329,19 @@
           <div class="overlay-rune" aria-hidden="true"><span></span></div>
 
           <div id="lobby-view" class="overlay-view">
-            <p class="overlay-kicker">Multiplayer kooperatif 1-4 pemain</p>
-            <h2 id="overlay-title">Masuk ke Rift</h2>
+            <p class="overlay-kicker">Co-op multiplayer for 1-4 players</p>
+            <h2 id="overlay-title">Enter the Rift</h2>
             <p class="overlay-copy">
-              Buat room untuk bermain sendiri atau bagikan kode agar sampai tiga penjaga lain dapat bergabung.
+              Choose online to play with friends, or offline to defend the rift without a server connection.
             </p>
 
-            <label class="field-label" for="player-name">Nama penjaga</label>
-            <input id="player-name" class="text-input" maxlength="18" autocomplete="nickname" placeholder="Nama kamu" />
+            <label class="field-label" for="player-name">Guardian name</label>
+            <input id="player-name" class="text-input" maxlength="18" autocomplete="nickname" placeholder="Your name" />
 
             <div class="lobby-actions">
-              <button id="create-room-btn" class="primary-btn" type="button">Buat Room</button>
-              <div class="join-divider"><span>atau gabung</span></div>
+              <button id="create-room-btn" class="primary-btn" type="button">Create Room</button>
+              <button id="offline-mode-btn" class="secondary-btn offline-btn" type="button">Play Offline</button>
+              <div class="join-divider"><span>or join</span></div>
               <form id="join-form" class="join-form">
                 <input
                   id="room-code-input"
@@ -137,56 +349,56 @@
                   maxlength="5"
                   autocomplete="off"
                   spellcheck="false"
-                  aria-label="Kode room"
-                  placeholder="KODE"
+                  aria-label="Room code"
+                  placeholder="CODE"
                 />
-                <button id="join-room-btn" class="secondary-btn" type="submit">Gabung</button>
+                <button id="join-room-btn" class="secondary-btn" type="submit">Join</button>
               </form>
             </div>
-            <p id="lobby-error" class="form-message" aria-live="polite">Menghubungkan ke server...</p>
+            <p id="lobby-error" class="form-message" aria-live="polite">Connecting to server...</p>
           </div>
 
           <div id="room-view" class="overlay-view hidden">
-            <p class="overlay-kicker">Lobby penjaga</p>
-            <h2>Room Siap</h2>
-            <p class="overlay-copy">Bagikan kode ini. Host dapat memulai dengan jumlah pemain berapa pun.</p>
-            <button id="copy-room-btn" class="room-code-display" type="button" title="Salin kode room">
-              <span>Kode Room</span>
+            <p class="overlay-kicker">Guardian lobby</p>
+            <h2>Room Ready</h2>
+            <p class="overlay-copy">Share this code. The host can start with any player count.</p>
+            <button id="copy-room-btn" class="room-code-display" type="button" title="Copy room code">
+              <span>Room Code</span>
               <strong id="room-code-display">-----</strong>
-              <small>Klik untuk menyalin</small>
+              <small>Click to copy</small>
             </button>
             <div id="lobby-player-list" class="lobby-player-list"></div>
-            <p id="host-message" class="host-message">Menunggu host memulai...</p>
+            <p id="host-message" class="host-message">Waiting for the host to start...</p>
             <div class="overlay-actions">
-              <button id="start-room-btn" class="primary-btn" type="button">Mulai Game</button>
-              <button id="leave-room-btn" class="secondary-btn" type="button">Keluar Room</button>
+              <button id="start-room-btn" class="primary-btn" type="button">Start Game</button>
+              <button id="leave-room-btn" class="secondary-btn" type="button">Leave Room</button>
             </div>
           </div>
 
           <div id="state-view" class="overlay-view hidden">
-            <p id="state-kicker" class="overlay-kicker">Status permainan</p>
-            <h2 id="state-title">Permainan Dijeda</h2>
+            <p id="state-kicker" class="overlay-kicker">Game status</p>
+            <h2 id="state-title">Game Paused</h2>
             <p id="state-text" class="overlay-copy"></p>
             <div id="state-player-list" class="lobby-player-list compact"></div>
             <p id="state-host-message" class="host-message"></p>
             <div class="overlay-actions">
-              <button id="state-action-btn" class="primary-btn" type="button">Lanjutkan</button>
-              <button id="state-secondary-btn" class="secondary-btn hidden" type="button">Mulai Ulang</button>
-              <button id="state-leave-btn" class="text-btn" type="button">Keluar Room</button>
+              <button id="state-action-btn" class="primary-btn" type="button">Resume</button>
+              <button id="state-secondary-btn" class="secondary-btn hidden" type="button">Restart</button>
+              <button id="state-leave-btn" class="text-btn" type="button">Leave Room</button>
             </div>
           </div>
 
-          <p class="overlay-footnote">Server authoritative, sinkronisasi 30 Hz, simulasi 60 Hz</p>
+          <p class="overlay-footnote">Online authoritative server, offline local simulation at 60 Hz</p>
         </div>
       </section>
 
       <div id="orientation-notice" aria-hidden="true">
         <div class="phone-icon"></div>
-        <strong>Putar perangkat</strong>
-        <span>Mode lanskap memberi area bidik terbaik.</span>
+        <strong>Rotate device</strong>
+        <span>Landscape mode gives the best aiming space.</span>
       </div>
 
-      <noscript>Game ini membutuhkan JavaScript untuk berjalan.</noscript>
+      <noscript>This game requires JavaScript to run.</noscript>
     </main>
   </body>
 </html>

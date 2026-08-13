@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { LEVELS } from '../src/game-logic.js';
 import { MAX_PLAYERS, getLevelSettings } from '../src/multiplayer-config.js';
-import { GameRoom, RoomError } from '../server/game-room.js';
+import { GameRoom, RoomError } from '../src/game-room.js';
 
 function createRoom(playerCount, code = `ROOM${playerCount}`) {
   const events = [];

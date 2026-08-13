@@ -14,21 +14,21 @@ export const BALL_TYPES = [
 
 export const LEVELS = [
   {
-    name: 'Gerbang Giok',
+    name: 'Jade Gate',
     balls: 34,
     colors: 4,
     speed: 47,
     startDistance: 720
   },
   {
-    name: 'Lorong Matahari',
+    name: 'Sun Passage',
     balls: 44,
     colors: 5,
     speed: 56,
     startDistance: 790
   },
   {
-    name: 'Jantung Kuil',
+    name: 'Temple Heart',
     balls: 54,
     colors: 6,
     speed: 64,
@@ -88,7 +88,7 @@ function catmullRom(p0, p1, p2, p3, t) {
 export class SampledPath {
   constructor(controlPoints, samplesPerSegment = 28) {
     if (!Array.isArray(controlPoints) || controlPoints.length < 2) {
-      throw new Error('SampledPath membutuhkan minimal dua titik.');
+      throw new Error('SampledPath requires at least two points.');
     }
 
     this.points = [];

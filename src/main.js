@@ -58,6 +58,7 @@ const ui = {
   stateView: document.getElementById('state-view'),
   playerName: document.getElementById('player-name'),
   createRoomBtn: document.getElementById('create-room-btn'),
+  offlineModeBtn: document.getElementById('offline-mode-btn'),
   joinForm: document.getElementById('join-form'),
   joinRoomBtn: document.getElementById('join-room-btn'),
   roomCodeInput: document.getElementById('room-code-input'),
@@ -87,6 +88,34 @@ let toastTimer = null;
 let currentOverlayKey = '';
 let lastHudRosterKey = '';
 let lastDangerBand = -1;
+let startupFinished = false;
+
+function finishStartupLoading() {
+  if (startupFinished) return;
+  startupFinished = true;
+  window.clearTimeout(window.__zumaStartupTimer);
+  const loader = document.getElementById('startup-loader');
+  if (!loader) return;
+  const elapsed = performance.now() - (window.__zumaStartupStartedAt ?? performance.now());
+  window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        loader.classList.add('is-leaving');
+        loader.addEventListener('transitionend', () => loader.remove(), { once: true });
+        window.setTimeout(() => loader.remove(), 650);
+      });
+    });
+  }, Math.max(0, 650 - elapsed));
+}
+
+function failStartupLoading(message) {
+  window.clearTimeout(window.__zumaStartupTimer);
+  const loader = document.getElementById('startup-loader');
+  if (!loader) return;
+  loader.classList.add('is-error');
+  document.getElementById('startup-status').textContent = message;
+  document.getElementById('startup-retry').hidden = false;
+}
 
 function colorToCss(color) {
   return `#${color.toString(16).padStart(6, '0')}`;
@@ -158,10 +187,10 @@ function renderPlayerSlots(container, snapshot) {
     const name = document.createElement('strong');
     name.textContent = player?.name ?? `Slot ${slot + 1}`;
     const status = document.createElement('small');
-    if (!player) status.textContent = 'Menunggu pemain';
-    else if (!player.connected) status.textContent = 'Menyambungkan ulang...';
+    if (!player) status.textContent = 'Waiting for player';
+    else if (!player.connected) status.textContent = 'Reconnecting...';
     else if (player.id === snapshot.hostId) status.textContent = 'Host';
-    else status.textContent = player.id === network.selfId ? 'Kamu' : 'Siap';
+    else status.textContent = player.id === network.selfId ? 'You' : 'Ready';
     card.append(dot, name, status);
     container.append(card);
   }
@@ -180,7 +209,7 @@ function renderHudRoster(snapshot) {
     name.textContent = player.name;
     const tag = document.createElement('span');
     tag.className = 'roster-tag';
-    tag.textContent = player.id === snapshot.hostId ? 'Host' : player.id === network.selfId ? 'Kamu' : '';
+    tag.textContent = player.id === snapshot.hostId ? 'Host' : player.id === network.selfId ? 'You' : '';
     card.append(dot, name, tag);
     ui.playerRoster.append(card);
   }
@@ -188,7 +217,7 @@ function renderHudRoster(snapshot) {
 
 function updateAmmoUI(snapshot = latestSnapshot) {
   const self = snapshot?.players.find((player) => player.id === network.selfId);
-  const enabled = Boolean(self?.connected && snapshot?.state === 'playing' && network.status === 'online');
+  const enabled = Boolean(self?.connected && snapshot?.state === 'playing' && ['online', 'local'].includes(network.status));
   setOrb(ui.currentAmmo, self?.currentColor ?? 0);
   setOrb(ui.nextAmmo, self?.nextColor ?? 1);
   ui.swapBtn.disabled = !enabled;
@@ -196,7 +225,7 @@ function updateAmmoUI(snapshot = latestSnapshot) {
 }
 
 function updateSnapshotUI(snapshot) {
-  setText(ui.score, snapshot.score.toLocaleString('id-ID'));
+  setText(ui.score, snapshot.score.toLocaleString('en-US'));
   setText(ui.ballsLeft, snapshot.chain.length);
   setText(ui.level, snapshot.levelIndex + 1);
   setText(ui.levelName, snapshot.levelName);
@@ -214,19 +243,19 @@ function updateSnapshotUI(snapshot) {
   const isHost = snapshot.hostId === network.selfId;
   ui.pauseBtn.disabled = !isHost || !['playing', 'paused'].includes(snapshot.state);
   ui.pauseBtn.querySelector('span').textContent = snapshot.state === 'paused' ? 'GO' : 'II';
-  ui.pauseBtn.title = isHost ? 'Jeda untuk semua pemain' : 'Hanya host yang dapat menjeda';
+  ui.pauseBtn.title = isHost ? 'Pause for all players' : 'Only the host can pause';
 }
 
 function updateDanger(ratio) {
   const safeRatio = Phaser.Math.Clamp(ratio || 0, 0, 1);
   ui.dangerFill.style.transform = `scaleX(${safeRatio.toFixed(4)})`;
-  let label = 'Kuil aman';
+  let label = 'Temple secure';
   let band = 0;
   if (safeRatio >= 0.78) {
-    label = 'Bahaya! Gerbang dekat';
+    label = 'Danger! Gate nearby';
     band = 2;
   } else if (safeRatio >= 0.55) {
-    label = 'Rantai mendekat';
+    label = 'Chain approaching';
     band = 1;
   }
   if (band !== lastDangerBand) {
@@ -246,7 +275,7 @@ function showLobby(errorMessage = '') {
   ui.roomBadge.classList.add('hidden');
   ui.playerRoster.replaceChildren();
   ui.pauseBtn.disabled = true;
-  ui.lobbyError.textContent = errorMessage || (network.status === 'online' ? 'Server siap.' : 'Menghubungkan ke server...');
+  ui.lobbyError.textContent = errorMessage || (network.status === 'online' ? 'Server ready.' : 'Connecting to server...');
   ui.lobbyError.classList.toggle('is-error', Boolean(errorMessage));
   activeScene?.clearNetworkState();
 }
@@ -259,10 +288,10 @@ function renderRoomLobby(snapshot) {
   const connectedCount = snapshot.players.filter((player) => player.connected).length;
   ui.startRoomBtn.classList.toggle('hidden', !isHost);
   ui.startRoomBtn.disabled = !isHost || connectedCount < 1;
-  ui.startRoomBtn.textContent = `Mulai ${connectedCount} Pemain`;
+  ui.startRoomBtn.textContent = `Start ${connectedCount} Player${connectedCount === 1 ? '' : 's'}`;
   ui.hostMessage.textContent = isHost
-    ? 'Kamu adalah host. Game dapat dimulai sekarang atau tunggu teman bergabung.'
-    : 'Menunggu host memulai permainan.';
+    ? 'You are the host. Start now or wait for friends to join.'
+    : 'Waiting for the host to start the game.';
 }
 
 function renderStateOverlay(snapshot) {
@@ -276,35 +305,35 @@ function renderStateOverlay(snapshot) {
 
   if (snapshot.state === 'paused') {
     ui.stateKicker.textContent = snapshot.levelName;
-    ui.stateTitle.textContent = 'Permainan Dijeda';
-    ui.stateText.textContent = 'Simulasi berhenti untuk seluruh pemain. Posisi rantai dan semua tembakan tetap aman.';
-    ui.stateActionBtn.textContent = 'Lanjutkan';
+    ui.stateTitle.textContent = 'Game Paused';
+    ui.stateText.textContent = 'The simulation is stopped for all players. Chain positions and shots are preserved.';
+    ui.stateActionBtn.textContent = 'Resume';
     ui.stateActionBtn.dataset.action = 'pause';
   } else if (snapshot.state === 'levelComplete') {
-    ui.stateKicker.textContent = `Level ${snapshot.levelIndex + 1} selesai`;
-    ui.stateTitle.textContent = 'Gerbang Dibersihkan';
-    ui.stateText.textContent = `Tim berhasil menghancurkan rantai. Bersiap memasuki ${LEVELS[snapshot.levelIndex + 1].name}.`;
-    ui.stateActionBtn.textContent = 'Level Berikutnya';
+    ui.stateKicker.textContent = `Level ${snapshot.levelIndex + 1} complete`;
+    ui.stateTitle.textContent = 'Gate Cleared';
+    ui.stateText.textContent = `The team destroyed the chain. Prepare to enter ${LEVELS[snapshot.levelIndex + 1].name}.`;
+    ui.stateActionBtn.textContent = 'Next Level';
     ui.stateActionBtn.dataset.action = 'next';
   } else if (snapshot.state === 'lost') {
-    ui.stateKicker.textContent = `Level ${snapshot.levelIndex + 1} belum selesai`;
-    ui.stateTitle.textContent = 'Gerbang Terbuka';
-    ui.stateText.textContent = 'Rantai mencapai jantung kuil. Skor checkpoint tetap tersimpan jika level ini dicoba lagi.';
-    ui.stateActionBtn.textContent = 'Coba Lagi';
+    ui.stateKicker.textContent = `Level ${snapshot.levelIndex + 1} failed`;
+    ui.stateTitle.textContent = 'Gate Opened';
+    ui.stateText.textContent = 'The chain reached the temple heart. The checkpoint score is kept if this level is retried.';
+    ui.stateActionBtn.textContent = 'Retry';
     ui.stateActionBtn.dataset.action = 'retry';
     ui.stateSecondaryBtn.classList.toggle('hidden', !isHost);
-    ui.stateSecondaryBtn.textContent = 'Ulang Campaign';
+    ui.stateSecondaryBtn.textContent = 'Restart Campaign';
     ui.stateSecondaryBtn.dataset.action = 'restart';
   } else if (snapshot.state === 'won') {
-    ui.stateKicker.textContent = 'Kemenangan tim';
-    ui.stateTitle.textContent = 'Kuil Terselamatkan';
-    ui.stateText.textContent = `Semua gerbang aman. Skor akhir tim: ${snapshot.score.toLocaleString('id-ID')}.`;
-    ui.stateActionBtn.textContent = 'Main Lagi';
+    ui.stateKicker.textContent = 'Team victory';
+    ui.stateTitle.textContent = 'Temple Saved';
+    ui.stateText.textContent = `All gates are secure. Final team score: ${snapshot.score.toLocaleString('en-US')}.`;
+    ui.stateActionBtn.textContent = 'Play Again';
     ui.stateActionBtn.dataset.action = 'restart';
   }
   ui.stateHostMessage.textContent = isHost
-    ? 'Kamu adalah host dan mengontrol kelanjutan room.'
-    : 'Menunggu keputusan host.';
+    ? 'You are the host and control the room flow.'
+    : 'Waiting for the host decision.';
 }
 
 function updateOverlayForSnapshot(snapshot) {
@@ -322,28 +351,33 @@ function updateOverlayForSnapshot(snapshot) {
 
 function updateConnectionStatus({ status }) {
   const labels = {
-    connecting: 'Menghubungkan',
-    reconnecting: 'Menyambung ulang',
+    connecting: 'Connecting',
+    reconnecting: 'Reconnecting',
     online: 'Online',
+    local: 'Offline',
     offline: 'Offline'
   };
   ui.connectionText.textContent = labels[status] ?? status;
   ui.connectionChip.classList.toggle('is-connecting', ['connecting', 'reconnecting'].includes(status));
   ui.connectionChip.classList.toggle('is-offline', status === 'offline');
+  ui.connectionChip.classList.toggle('is-local', status === 'local');
   ui.createRoomBtn.disabled = status !== 'online';
   ui.joinRoomBtn.disabled = status !== 'online';
+  ui.offlineModeBtn.disabled = false;
+  if (status === 'local') ui.pingValue.textContent = 'local';
+  else if (network.latency === null) ui.pingValue.textContent = '-- ms';
   if (status === 'online' && !latestSnapshot) {
-    ui.lobbyError.textContent = 'Server siap.';
+    ui.lobbyError.textContent = 'Server ready.';
     ui.lobbyError.classList.remove('is-error');
   }
   if (status === 'reconnecting' && network.roomCode) {
     currentOverlayKey = 'reconnecting';
     setOverlayView('state');
-    ui.stateKicker.textContent = 'Koneksi terputus';
-    ui.stateTitle.textContent = 'Menyambungkan Ulang';
-    ui.stateText.textContent = 'Sesi kamu disimpan selama 15 detik. Client sedang mencoba kembali otomatis.';
+    ui.stateKicker.textContent = 'Connection lost';
+    ui.stateTitle.textContent = 'Reconnecting';
+    ui.stateText.textContent = 'Your session is saved for 15 seconds. The client is trying to reconnect automatically.';
     ui.statePlayerList.replaceChildren();
-    ui.stateHostMessage.textContent = 'Jangan tutup halaman ini.';
+    ui.stateHostMessage.textContent = 'Keep this page open.';
     ui.stateActionBtn.classList.add('hidden');
     ui.stateSecondaryBtn.classList.add('hidden');
   }
@@ -469,7 +503,7 @@ class ShooterActor {
     const compactName = player.name.length > nameLimit
       ? `${player.name.slice(0, Math.max(1, nameLimit - 2))}..`
       : player.name;
-    const label = `${compactName}${isSelf ? ' [KAMU]' : ''}`;
+    const label = `${compactName}${isSelf ? ' [YOU]' : ''}`;
     if (this.label.text !== label) this.label.text = label;
     if (this.connected !== player.connected) {
       this.connected = player.connected;
@@ -529,6 +563,7 @@ class MultiplayerZumaScene extends Phaser.Scene {
     this.aimCursor = this.add.circle(650, 280, 11, 0x000000, 0).setStrokeStyle(2, 0xffe9a8, 0.58).setDepth(12).setVisible(false);
     this.bindInput();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
+    finishStartupLoading();
   }
 
   createBallTextures() {
@@ -803,7 +838,7 @@ class MultiplayerZumaScene extends Phaser.Scene {
       self?.connected &&
       this.snapshot?.state === 'playing' &&
       !this.snapshot.resolving &&
-      network.status === 'online'
+      ['online', 'local'].includes(network.status)
     );
   }
 
@@ -1006,14 +1041,14 @@ class MultiplayerZumaScene extends Phaser.Scene {
   }
 }
 
-ui.playerName.value = network.playerName || `Penjaga ${Math.floor(10 + Math.random() * 90)}`;
+ui.playerName.value = network.playerName || `Guardian ${Math.floor(10 + Math.random() * 90)}`;
 ui.roomCodeInput.addEventListener('input', () => {
   ui.roomCodeInput.value = ui.roomCodeInput.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 5);
 });
 
 ui.createRoomBtn.addEventListener('click', () => {
   sound.unlock();
-  ui.lobbyError.textContent = 'Membuat room...';
+  ui.lobbyError.textContent = 'Creating room...';
   ui.lobbyError.classList.remove('is-error');
   network.createRoom(ui.playerName.value);
 });
@@ -1022,11 +1057,11 @@ ui.joinForm.addEventListener('submit', (event) => {
   event.preventDefault();
   sound.unlock();
   if (ui.roomCodeInput.value.length !== 5) {
-    ui.lobbyError.textContent = 'Masukkan kode room 5 karakter.';
+    ui.lobbyError.textContent = 'Enter a 5-character room code.';
     ui.lobbyError.classList.add('is-error');
     return;
   }
-  ui.lobbyError.textContent = 'Bergabung ke room...';
+  ui.lobbyError.textContent = 'Joining room...';
   ui.lobbyError.classList.remove('is-error');
   network.joinRoom(ui.playerName.value, ui.roomCodeInput.value);
 });
@@ -1035,9 +1070,9 @@ ui.copyRoomBtn.addEventListener('click', async () => {
   if (!network.roomCode) return;
   try {
     await navigator.clipboard.writeText(network.roomCode);
-    showToast('Kode room disalin');
+    showToast('Room code copied');
   } catch {
-    showToast(`Kode room: ${network.roomCode}`, 2200);
+    showToast(`Room code: ${network.roomCode}`, 2200);
   }
 });
 
@@ -1049,6 +1084,14 @@ ui.stateActionBtn.addEventListener('click', () => {
 });
 ui.stateSecondaryBtn.addEventListener('click', () => {
   if (ui.stateSecondaryBtn.dataset.action) network.action(ui.stateSecondaryBtn.dataset.action);
+});
+
+ui.offlineModeBtn.addEventListener('click', () => {
+  sound.unlock();
+  ui.lobbyError.textContent = 'Preparing offline mode...';
+  ui.lobbyError.classList.remove('is-error');
+  network.startOffline(ui.playerName.value);
+  showToast('Offline mode active', 1100);
 });
 
 function bindQuickPress(element, handler) {
@@ -1072,8 +1115,8 @@ ui.soundBtn.addEventListener('click', () => {
   sound.setEnabled(!sound.enabled);
   ui.soundBtn.classList.toggle('is-muted', !sound.enabled);
   ui.soundBtn.querySelector('span').textContent = sound.enabled ? 'VOL' : 'OFF';
-  ui.soundBtn.setAttribute('aria-label', sound.enabled ? 'Matikan suara' : 'Aktifkan suara');
-  showToast(sound.enabled ? 'Suara aktif' : 'Suara dimatikan', 850);
+  ui.soundBtn.setAttribute('aria-label', sound.enabled ? 'Mute sound' : 'Unmute sound');
+  showToast(sound.enabled ? 'Sound on' : 'Sound muted', 850);
 });
 
 network.on('status', updateConnectionStatus);
@@ -1082,7 +1125,7 @@ network.on('latency', ({ latency }) => {
 });
 network.on('roomJoined', ({ roomCode, reconnected }) => {
   ui.roomCodeInput.value = roomCode;
-  if (reconnected) showToast('Berhasil tersambung kembali');
+  if (reconnected) showToast('Reconnected successfully');
 });
 network.on('roomLeft', () => showLobby());
 network.on('snapshot', (snapshot) => {
@@ -1105,7 +1148,7 @@ network.on('ammoChanged', (event) => {
   updateAmmoUI(latestSnapshot);
 });
 network.on('error', (error) => {
-  const message = error.message || 'Terjadi kesalahan jaringan.';
+  const message = error.message || 'A network error occurred.';
   if (!latestSnapshot || latestSnapshot.state === 'lobby') {
     ui.lobbyError.textContent = message;
     ui.lobbyError.classList.add('is-error');
@@ -1142,6 +1185,7 @@ try {
   startClient();
 } catch (error) {
   console.error(error);
-  ui.lobbyError.textContent = 'Browser gagal membuat canvas game. Aktifkan akselerasi grafis lalu muat ulang.';
+  failStartupLoading('The game could not start. Check graphics acceleration and try again.');
+  ui.lobbyError.textContent = 'The browser failed to create the game canvas. Enable graphics acceleration, then reload.';
   ui.lobbyError.classList.add('is-error');
 }
